@@ -1,0 +1,35 @@
+# --- Secretos y entorno local ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Pruebas y desarrollo ---
+tests/
+pytest.ini
+
+# --- Control de versiones y editores ---
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# --- Docker ---
+Dockerfile
+.dockerignore
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+Desktop.ini

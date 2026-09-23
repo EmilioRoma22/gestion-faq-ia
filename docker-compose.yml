@@ -1,0 +1,88 @@
+name: gestion-faq-ia
+
+services:
+  # -------------------------------------------------------------------------
+  # Base de datos MySQL (persistente)
+  # -------------------------------------------------------------------------
+  db:
+    image: mysql:8.4
+    container_name: gpaq-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Falta MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Falta MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER:?Falta MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Falta MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - gpaq-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # -------------------------------------------------------------------------
+  # API FastAPI (Python 3.14.6) — puerto 8000
+  # -------------------------------------------------------------------------
+  api:
+    build:
+      context: ./gpaq-api
+      dockerfile: Dockerfile
+    image: gpaq-api:latest
+    container_name: gpaq-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENV: ${ENV:?Falta ENV}
+      DOCS_ENABLED: ${DOCS_ENABLED:?Falta DOCS_ENABLED}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Falta CORS_ORIGINS}
+      COOKIES_SECURE: ${COOKIES_SECURE:?Falta COOKIES_SECURE}
+      COOKIES_SAMESITE: ${COOKIES_SAMESITE:?Falta COOKIES_SAMESITE}
+      DB_HOST: ${DB_HOST:?Falta DB_HOST}
+      DB_PORT: ${DB_PORT:?Falta DB_PORT}
+      DB_USER: ${DB_USER:?Falta DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD}
+      DB_NAME: ${DB_NAME:?Falta DB_NAME}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:?Falta DB_POOL_SIZE}
+      DB_CONNECTION_TIMEOUT: ${DB_CONNECTION_TIMEOUT:?Falta DB_CONNECTION_TIMEOUT}
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?Falta DEEPSEEK_API_KEY}
+      DEEPSEEK_API_BASE: ${DEEPSEEK_API_BASE:?Falta DEEPSEEK_API_BASE}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:?Falta UVICORN_WORKERS}
+    ports:
+      - "8000:8000"
+    networks:
+      - gpaq-net
+
+  # -------------------------------------------------------------------------
+  # Frontend (build con Node/pnpm) servido por NGINX — puerto 8080
+  # -------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./gpaq-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:?Falta VITE_API_BASE_URL}
+    image: gpaq-frontend:latest
+    container_name: gpaq-frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    networks:
+      - gpaq-net
+
+networks:
+  gpaq-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
