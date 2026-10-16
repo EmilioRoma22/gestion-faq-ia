@@ -1,4 +1,12 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+const resolverApiBaseUrl = (): string => {
+  const raw = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  if (!raw || raw === 'https:/api/v1' || raw === 'http:/api/v1' || raw === 'https:///api/v1' || raw === 'http:///api/v1') {
+    return '/api/v1';
+  }
+  return raw;
+};
+
+const API_BASE_URL = resolverApiBaseUrl();
 
 // Obtiene el token guardado en localStorage
 const obtenerToken = (): string | null => {

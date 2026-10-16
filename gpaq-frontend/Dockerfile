@@ -24,19 +24,27 @@ COPY . .
 RUN pnpm build
 
 ########################################
-# Stage 2: runtime — NGINX sin privilegios sirviendo los estáticos en :8080
+# Stage 2: runtime — NGINX sin privilegios sirviendo los estáticos
 ########################################
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 
-# Config de NGINX (SPA fallback + reverse proxy /api -> servicio api)
+USER root
+
+# Config base de NGINX y entrypoint dinámico para Railway (PORT + API_BACKEND_URL)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY entrypoint.sh /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh \
+    && chmod +x /entrypoint.sh \
+    && chown -R 101:101 /etc/nginx/conf.d /entrypoint.sh
 
 # Artefactos estáticos ya construidos
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --chown=101:101 --from=build /app/dist /usr/share/nginx/html
+
+USER 101
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -q --spider http://127.0.0.1:8080/ || exit 1
+    CMD wget -q --spider http://127.0.0.1:${PORT:-8080}/ || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/entrypoint.sh"]

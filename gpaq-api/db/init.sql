@@ -50,14 +50,3 @@ CREATE TABLE IF NOT EXISTS `mensajes` (
     FOREIGN KEY (`conversacion_id`) REFERENCES `conversaciones`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Semillas iniciales para faqs
-INSERT INTO `faqs` (`pregunta`, `respuesta`, `categoria`, `activo`) VALUES
-('¿Cuáles son los horarios de atención?', 'Nuestro horario de atención al cliente es de lunes a viernes de 9:00 AM a 6:00 PM y los sábados de 9:00 AM a 1:00 PM. Los domingos permanecemos cerrados.', 'Soporte', 1),
-('¿Cuánto tiempo tarda el envío de un producto?', 'Los envíos nacionales tardan entre 3 y 5 días hábiles, mientras que los envíos internacionales pueden tardar de 7 a 15 días hábiles dependiendo del país de destino.', 'Envíos', 1),
-('¿Cómo puedo solicitar una devolución o reembolso?', 'Para solicitar una devolución, dispones de 14 días naturales desde la recepción de tu producto. El producto debe estar en su empaque original y sin signos de uso. Escribe a devoluciones@gpaq.com con tu número de orden.', 'Devoluciones', 1),
-('¿Cuáles son los métodos de pago aceptados?', 'Aceptamos tarjetas de crédito y débito Visa, Mastercard y American Express, además de pagos mediante PayPal, transferencias bancarias SPEI y pagos en efectivo en tiendas de conveniencia asociadas.', 'Pagos', 1),
-('¿Cómo puedo rastrear mi pedido?', 'Una vez enviado tu pedido, recibirás un correo electrónico automático con el número de guía y un enlace directo para rastrearlo en el sitio web de la paquetería (DHL, FedEx o Estafeta).', 'Envíos', 1);
-
--- Semillas iniciales para la configuración del bot
-INSERT INTO `configuraciones_bot` (`bot_nombre`, `mensaje_bienvenida`, `mensaje_fallback`, `sector`, `temperatura`, `system_prompt`) VALUES
-('GPAQ Assistant', '¡Hola! Bienvenido al soporte de GPAQ. ¿En qué puedo ayudarte hoy?', 'Lo siento, no poseo información sobre esa consulta en mi base de conocimiento. ¿Te gustaría que te asista un agente humano?', 'Soporte E-Commerce', 0.1, 'Eres un asistente virtual experto para una tienda de comercio electrónico. Responde de manera profesional, concisa y amable.');
