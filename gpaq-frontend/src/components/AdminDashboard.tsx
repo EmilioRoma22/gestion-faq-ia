@@ -2,16 +2,40 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import FaqManager from './FaqManager';
 import BotConfig from './BotConfig';
-import { LogOut, BookOpen, Bot, MessageSquare, Menu, X, Send } from 'lucide-react';
+import DeviceFeatures from './DeviceFeatures';
+import {
+  getNotificationPermission,
+  requestNotificationPermission,
+  notifyAiChatResponse,
+  subscribeToPushNotifications,
+} from '../utils/pwaFeatures';
+import {
+  LogOut,
+  BookOpen,
+  Bot,
+  MessageSquare,
+  Menu,
+  X,
+  Send,
+  BellRing,
+  Bell,
+  BellOff,
+} from 'lucide-react';
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'faqs' | 'bot' | 'test-chat'>('faqs');
+  const [activeTab, setActiveTab] = useState<'faqs' | 'bot' | 'test-chat' | 'device-pwa'>('faqs');
   const [usuario, setUsuario] = useState<{ nombre: string; email: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Estado de permisos de Notificaciones Push
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>(
+    getNotificationPermission()
+  );
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Estados para el Simulador de Chat en el Dashboard
   const [chatConvId, setChatConvId] = useState<string | null>(null);
@@ -21,6 +45,44 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   useEffect(() => {
     cargarUsuario();
+
+    // Monitorear cambios en el permiso de notificaciones en tiempo real
+    let permStatus: PermissionStatus | null = null;
+    if ('permissions' in navigator) {
+      navigator.permissions
+        .query({ name: 'notifications' })
+        .then((status) => {
+          permStatus = status;
+          setNotifPermission(getNotificationPermission());
+          status.onchange = () => {
+            setNotifPermission(getNotificationPermission());
+          };
+        })
+        .catch(() => {
+          setNotifPermission(getNotificationPermission());
+        });
+    }
+
+    // Escuchar clics en notificaciones Push desde el Service Worker (sw-push.js)
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NOTIFICATION_CLICKED') {
+        const targetTab = event.data?.data?.tab;
+        if (targetTab === 'test-chat' || targetTab === 'device-pwa') {
+          setActiveTab(targetTab);
+        }
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    }
+
+    return () => {
+      if (permStatus) permStatus.onchange = null;
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      }
+    };
   }, []);
 
   const cargarUsuario = async () => {
@@ -37,6 +99,18 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const handleLogout = () => {
     api.logout();
     onLogout();
+  };
+
+  const solicitarPermisoNotificaciones = async () => {
+    const res = await requestNotificationPermission();
+    setNotifPermission(res);
+    if (res === 'granted') {
+      try {
+        await subscribeToPushNotifications();
+      } catch {
+        // Suscripción manejada internamente
+      }
+    }
   };
 
   // Inicializar Chat de Prueba en Dashboard
@@ -61,6 +135,15 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   }, [activeTab]);
 
+  const handleOpenChatTab = async () => {
+    setActiveTab('test-chat');
+    setSidebarOpen(false);
+    // Si aún no se ha decidido el permiso de notificaciones, solicitarlo al abrir el simulador
+    if (getNotificationPermission() === 'default') {
+      await solicitarPermisoNotificaciones();
+    }
+  };
+
   const enviarMensajePrueba = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoMensaje.trim() || !chatConvId || chatLoading) return;
@@ -73,6 +156,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     try {
       const res = await api.sendChatMessage(chatConvId, msgUsuario);
       setChatMensajes(prev => [...prev, res]);
+
+      // Disparar Notificación Push nativa cuando el Agente de IA responde
+      if (res?.contenido) {
+        await notifyAiChatResponse(res.contenido, 'Simulador de Chat');
+      }
     } catch (err: any) {
       setChatMensajes(prev => [...prev, { id: Date.now() + 1, remitente: 'assistant', contenido: `Error: ${err.message}` }]);
     } finally {
@@ -151,7 +239,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </button>
 
           <button
-            onClick={() => { setActiveTab('test-chat'); setSidebarOpen(false); }}
+            onClick={handleOpenChatTab}
             className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all ${
               activeTab === 'test-chat' 
                 ? 'bg-indigo-650 text-white shadow-lg shadow-indigo-600/15' 
@@ -160,6 +248,30 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           >
             <MessageSquare className="w-5 h-5" />
             <span>Simulador de Chat</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('device-pwa'); setSidebarOpen(false); }}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all ${
+              activeTab === 'device-pwa' 
+                ? 'bg-indigo-650 text-white shadow-lg shadow-indigo-600/15' 
+                : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40'
+            }`}
+          >
+            <div className="flex items-center gap-3.5">
+              <BellRing className="w-5 h-5" />
+              <span>Push y Dispositivo</span>
+            </div>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                notifPermission === 'granted'
+                  ? 'bg-emerald-400'
+                  : notifPermission === 'denied'
+                  ? 'bg-red-400'
+                  : 'bg-amber-400 animate-pulse'
+              }`}
+              title={`Permiso de notificaciones: ${notifPermission}`}
+            />
           </button>
         </nav>
 
@@ -189,20 +301,87 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
       {/* Main Content Area */}
       <main className="flex-1 p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full">
+        {/* Banner de Solicitud de Permiso de Notificaciones al entrar a la App */}
+        {notifPermission === 'default' && !bannerDismissed && (
+          <div className="mb-6 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-indigo-500/20 text-indigo-300 rounded-xl shrink-0">
+                <BellRing className="w-5 h-5 animate-bounce" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-zinc-100">
+                  Activar Notificaciones Push del Asistente IA
+                </h4>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Concede permiso para recibir una notificación nativa cada vez que el Agente de IA responda en el Simulador de Chat.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                onClick={() => setBannerDismissed(true)}
+                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer"
+              >
+                Ahora no
+              </button>
+              <button
+                onClick={solicitarPermisoNotificaciones}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 cursor-pointer transition-all"
+              >
+                Permitir Notificaciones
+              </button>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'faqs' && <FaqManager />}
         
         {activeTab === 'bot' && <BotConfig />}
 
+        {activeTab === 'device-pwa' && (
+          <DeviceFeatures onNavigateToChat={() => setActiveTab('test-chat')} />
+        )}
+
         {activeTab === 'test-chat' && (
           <div className="max-w-3xl mx-auto space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
-                <MessageSquare className="w-6 h-6 text-indigo-400" />
-                Simulador de Chat
-              </h2>
-              <p className="text-sm text-zinc-400 mt-1">
-                Realiza pruebas de diálogo en tiempo real con el asistente virtual para verificar su comportamiento.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+                  <MessageSquare className="w-6 h-6 text-indigo-400" />
+                  Simulador de Chat
+                </h2>
+                <p className="text-sm text-zinc-400 mt-1">
+                  Realiza pruebas de diálogo en tiempo real con el asistente virtual. Al responder, recibirás una notificación Push.
+                </p>
+              </div>
+
+              {/* Indicador de estado de notificaciones Push en el Simulador */}
+              {notifPermission === 'granted' ? (
+                <button
+                  onClick={() => setActiveTab('device-pwa')}
+                  className="self-start sm:self-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 cursor-pointer hover:bg-emerald-500/25 transition-all"
+                  title="Ver configuración de Push y Geolocalización"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>Push Activo al Responder</span>
+                </button>
+              ) : notifPermission === 'denied' ? (
+                <button
+                  onClick={() => setActiveTab('device-pwa')}
+                  className="self-start sm:self-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/30 cursor-pointer hover:bg-red-500/25 transition-all"
+                >
+                  <BellOff className="w-3.5 h-3.5" />
+                  <span>Permiso Push Denegado</span>
+                </button>
+              ) : (
+                <button
+                  onClick={solicitarPermisoNotificaciones}
+                  className="self-start sm:self-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer transition-all shadow-md shadow-indigo-600/20"
+                >
+                  <BellRing className="w-3.5 h-3.5" />
+                  <span>Activar Notificaciones Push</span>
+                </button>
+              )}
             </div>
 
             <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl flex flex-col h-[520px] overflow-hidden backdrop-blur-md">

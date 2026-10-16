@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
 import ChatWidget from './components/ChatWidget';
+import PwaPrompt from './components/PwaPrompt';
 import { api } from './utils/api';
 
 export default function App() {
@@ -17,6 +18,9 @@ export default function App() {
       
       {/* Widget de chat flotante disponible globalmente */}
       <ChatWidget />
+
+      {/* Control y notificaciones de PWA y Service Worker */}
+      <PwaPrompt />
     </div>
   );
 }

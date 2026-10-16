@@ -1,7 +1,9 @@
 # --- Dependencias y artefactos de build ---
 node_modules
 dist
+dev-dist
 dist-ssr
+
 
 # --- Secretos y entorno local ---
 .env

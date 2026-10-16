@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../utils/api';
+import { notifyAiChatResponse } from '../utils/pwaFeatures';
 import { MessageSquare, X, Send, Bot, Loader } from 'lucide-react';
 
 export default function ChatWidget() {
@@ -94,6 +95,9 @@ export default function ChatWidget() {
     try {
       const respuesta = await api.sendChatMessage(conversacionId, textoUsuario);
       setMensajes(prev => [...prev, respuesta]);
+      if (respuesta?.contenido) {
+        await notifyAiChatResponse(respuesta.contenido, 'Chat de Soporte');
+      }
     } catch (err: any) {
       setMensajes(prev => [
         ...prev, 
